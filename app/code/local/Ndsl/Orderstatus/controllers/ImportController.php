@@ -172,33 +172,39 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
             }                    
             
 
-            $gstate = $this->_getAssignedState($gorderstatus);
-            if($gstate == $order->getState()){
-                $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
-                      ->addStatusToHistory(
+            $gstate = $this->_getAssignedState($gorderstatus,$order->getState());
+            try{
+                if($gstate == $order->getState()){
+                  $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
+                        ->addStatusToHistory(
                             $gorderstatus,
                             $order->getCustomerNote(),
                             $order->getCustomerNoteNotify())
                             ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
                             ->save();
-            }else{
-                $gstate = $this->_getAssignedState($gorderstatus);
-                $isCustomerNotified = false;
-                $order->setState($gstate, $gorderstatus, $comment, false)->save();
-            }
-            
+                  $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));                                   
+                }elseif($gstate != ""){
+                    $gstate = $this->_getAssignedState($gorderstatus,$order->getState());
+                    $isCustomerNotified = false;
+                    $order->setState($gstate, $gorderstatus, $comment, false)->save();
+                    $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));
+                }else{
+                  $this->_getSession()->addError($this->__('There is an error %s',$order->getIncrementId()));                         
+                }
 
-               
-            $this->_getSession()->addSuccess($this->__('Email send to  %s',$order->getIncrementId()));                       
+            }catch (Exception $e) {
+                //echo 'Caught exception: ',  $e->getMessage(), "\n";
+                $this->_getSession()->addError($this->__('There is an error %s : %s',$order->getIncrementId()),$e->getMessage());                       
+            }           
     }
 
-    protected function _getAssignedState($status)
+    protected function _getAssignedState($status,$state)
     {
         $item = Mage::getResourceModel('sales/order_status_collection')
             ->joinStates()
             ->addFieldToFilter('main_table.status', $status)
+            ->addFieldToFilter('state_table.state', $state)
             ->getFirstItem();
- 
         return $item->getState();
     }
 }

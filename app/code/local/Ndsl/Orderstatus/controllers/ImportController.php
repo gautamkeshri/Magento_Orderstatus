@@ -36,8 +36,9 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
                 $comment = $_POST['comments'];
                 $gorderstatus = $_POST['orderstatus_code'];
                 $checkbox_state = $_POST['createinvoce'];
+                $customernotify = $_POST['customernotify'];
                 
-                $this->_importTrackingFile($_FILES['import_orderstatus_file']['tmp_name'],$comment,$gorderstatus,$checkbox_state);
+                $this->_importTrackingFile($_FILES['import_orderstatus_file']['tmp_name'],$comment,$gorderstatus,$checkbox_state,$customernotify);
             }
             catch (Mage_Core_Exception $e) {
                 $this->_getSession()->addError($e->getMessage());
@@ -58,7 +59,7 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
      * @param string $fileName
      * @param string $comment
      */
-    protected function _importTrackingFile($fileName,$comment,$gorderstatus,$checkbox_state)
+    protected function _importTrackingFile($fileName,$comment,$gorderstatus,$checkbox_state,$customernotify)
     {
         /**
          * File handling
@@ -121,7 +122,7 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
             /**
              * Try to change order status 
              */
-            $orderprocess = $this->_changeStatus($order,$comment,$gorderstatus,$checkbox_state);
+            $orderprocess = $this->_changeStatus($order,$comment,$gorderstatus,$checkbox_state,$customernotify);
 
             if ($orderprocess) {
                 $this->_getSession()->addSuccess($this->__('Order status changed for order %s', $orderId));
@@ -138,7 +139,7 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
      * @param string $comment
      * @return staus
      */
-    public function _changeStatus($order,$comment,$gorderstatus,$checkbox_state)
+    public function _changeStatus($order,$comment,$gorderstatus,$checkbox_state,$customernotify)
     {
             //Mage::log($order->getState()." - ".$gorderstatus." - checkbox- ".$checkbox_state,null,'ostatus.log'); 
             if($gorderstatus == "default"){
@@ -172,40 +173,62 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
             }                    
             
 
-            $gstate = $this->_getAssignedState($gorderstatus,$order->getState());
-            try{
-                if($gstate == $order->getState()){
-                  $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
-                        ->addStatusToHistory(
+            $gstate = $this->_getAssignedState($gorderstatus);
+            /*if($gstate == $order->getState()){
+                $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
+                      ->addStatusToHistory(
                             $gorderstatus,
                             $order->getCustomerNote(),
                             $order->getCustomerNoteNotify())
                             ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
                             ->save();
+            }else{
+                $gstate = $this->_getAssignedState($gorderstatus);
+                $isCustomerNotified = false;
+                $order->setState($gstate, $gorderstatus, $comment, false)->save();
+            }*/
+            try{
+                $order_status = array('complete','closed');
+                if(in_array($gstate,$order_status)) {
+                    $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
+                        ->addStatusToHistory($gorderstatus,$order->getCustomerNote(),$order->getCustomerNoteNotify())
+                        ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
+                        ->save();
                   $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));                                   
-                }elseif($gstate != ""){
-                    $gstate = $this->_getAssignedState($gorderstatus,$order->getState());
-                    $isCustomerNotified = false;
-                    $order->setState($gstate, $gorderstatus, $comment, false)->save();
+                }else {
+                    $isCustomerNotified = (1 == $customernotify)? true : false;
+                    $order->setState($gstate, $gorderstatus, $comment, $isCustomerNotified)
+                          ->setCustomerNote($comment)
+                          ->save();
+                    if($isCustomerNotified){
+                      $order->sendOrderUpdateEmail(true, $comment);
+                    }
                     $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));
-                }else{
-                  $this->_getSession()->addError($this->__('There is an error %s',$order->getIncrementId()));                         
                 }
-
             }catch (Exception $e) {
                 //echo 'Caught exception: ',  $e->getMessage(), "\n";
                 $this->_getSession()->addError($this->__('There is an error %s : %s',$order->getIncrementId()),$e->getMessage());                       
-            }           
+            }
+            
+
+               
+            $this->_getSession()->addSuccess($this->__('Email send to  %s',$order->getIncrementId()));                       
     }
 
-    protected function _getAssignedState($status,$state)
+    protected function _getAssignedState($status)
     {
-        $item = Mage::getResourceModel('sales/order_status_collection')
+        /*$item = Mage::getResourceModel('sales/order_status_collection')
             ->joinStates()
             ->addFieldToFilter('main_table.status', $status)
-            ->addFieldToFilter('state_table.state', $state)
             ->getFirstItem();
-        return $item->getState();
+ 
+        return $item->getState();*/
+        $sqlqry = "SELECT `main_table`.*, `state_table`.`state` AS ostate, `state_table`.`is_default` FROM `sales_order_status` AS `main_table`
+ LEFT JOIN `sales_order_status_state` AS `state_table` ON main_table.status=state_table.status WHERE (main_table.status = '".$status."') ORDER BY FIELD(ostate,'".$state."','other')";
+        $resource = Mage::getSingleton('core/resource');
+        $result = $resource->getConnection('core_read')
+        ->fetchRow($sqlqry);
+        return $result["state"];
     }
 }
 ?>

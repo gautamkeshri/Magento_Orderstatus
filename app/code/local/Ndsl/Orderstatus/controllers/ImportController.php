@@ -228,7 +228,7 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
         $resource = Mage::getSingleton('core/resource');
         $result = $resource->getConnection('core_read')
         ->fetchRow($sqlqry);
-        return $result["state"];
+        return $result["ostate"];
     }
 }
 ?>

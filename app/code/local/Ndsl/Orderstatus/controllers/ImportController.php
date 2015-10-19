@@ -171,34 +171,25 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
                     $this->_getSession()->addError($this->__('Order %s Error in Invoice ', $order->getIncrementId()));
                 }    
             }                    
-            
 
             $gstate = $this->_getAssignedState($gorderstatus);
-            /*if($gstate == $order->getState()){
-                $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
-                      ->addStatusToHistory(
-                            $gorderstatus,
-                            $order->getCustomerNote(),
-                            $order->getCustomerNoteNotify())
-                            ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
-                            ->save();
-            }else{
-                $gstate = $this->_getAssignedState($gorderstatus);
-                $isCustomerNotified = false;
-                $order->setState($gstate, $gorderstatus, $comment, false)->save();
-            }*/
+            //getting username
+            $session = Mage::getSingleton('admin/session');
+            $username = $session->getUser()->getUsername();
+            $append = " (".$username.")";
+            
             try{
                 $order_status = array('complete','closed');
                 if(in_array($gstate,$order_status)) {
                     $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
-                        ->addStatusToHistory($gorderstatus,$order->getCustomerNote(),$order->getCustomerNoteNotify())
+                        ->addStatusToHistory($gorderstatus,$order->getCustomerNote().$append,$order->getCustomerNoteNotify())
                         ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
                         ->save();
                   $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));                                   
                 }else {
                     $isCustomerNotified = (1 == $customernotify)? true : false;
-                    $order->setState($gstate, $gorderstatus, $comment, $isCustomerNotified)
-                          ->setCustomerNote($comment)
+                    $order->setState($gstate, $gorderstatus, $comment.$append, $isCustomerNotified)
+                          ->setCustomerNote($comment.$append)
                           ->save();
                     if($isCustomerNotified){
                       $order->sendOrderUpdateEmail(true, $comment);
@@ -217,12 +208,6 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
 
     protected function _getAssignedState($status)
     {
-        /*$item = Mage::getResourceModel('sales/order_status_collection')
-            ->joinStates()
-            ->addFieldToFilter('main_table.status', $status)
-            ->getFirstItem();
- 
-        return $item->getState();*/
         $sqlqry = "SELECT `main_table`.*, `state_table`.`state` AS ostate, `state_table`.`is_default` FROM `sales_order_status` AS `main_table`
  LEFT JOIN `sales_order_status_state` AS `state_table` ON main_table.status=state_table.status WHERE (main_table.status = '".$status."') ORDER BY FIELD(ostate,'".$state."','other')";
         $resource = Mage::getSingleton('core/resource');

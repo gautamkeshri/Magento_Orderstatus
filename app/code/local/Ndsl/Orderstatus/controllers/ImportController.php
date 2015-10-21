@@ -180,21 +180,22 @@ class Ndsl_Orderstatus_ImportController extends Mage_Adminhtml_Controller_Action
             
             try{
                 $order_status = array('complete','closed');
+                $isCustomerNotified = (1 == $customernotify)? true : false;
                 if(in_array($gstate,$order_status)) {
-                    $order->setCustomerNote($comment)->setCustomerNoteNotify(true)
+                    $order->setCustomerNote($comment)->setCustomerNoteNotify($isCustomerNotified)
                         ->addStatusToHistory($gorderstatus,$order->getCustomerNote().$append,$order->getCustomerNoteNotify())
-                        ->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())
+                        /*->sendOrderUpdateEmail($order->getCustomerNoteNotify(), $order->getCustomerNote())*/
                         ->save();
-                  $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));                                   
+                  	$this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));                                   
                 }else {
-                    $isCustomerNotified = (1 == $customernotify)? true : false;
+                    
                     $order->setState($gstate, $gorderstatus, $comment.$append, $isCustomerNotified)
                           ->setCustomerNote($comment.$append)
                           ->save();
-                    if($isCustomerNotified){
-                      $order->sendOrderUpdateEmail(true, $comment);
-                    }
                     $this->_getSession()->addSuccess($this->__('Status changed for %s',$order->getIncrementId()));
+                }
+                if($isCustomerNotified){
+                    $order->sendOrderUpdateEmail(true, $comment);
                 }
             }catch (Exception $e) {
                 //echo 'Caught exception: ',  $e->getMessage(), "\n";
